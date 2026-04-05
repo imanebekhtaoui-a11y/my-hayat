@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Le Chemin de Rym - Apprendre la Cursive</title>
+    <style>
+        :root {
+            --rouge-voyelle: #e74c3c;
+            --bleu-consonne: #3498db;
+            --fond: #fdfaf0;
+            --ligne-base: #5d5d5d;
+            --ligne-interline: #aed6f1;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--fond);
+            overflow: hidden;
+            touch-action: none;
+            user-select: none;
+        }
+
+        /* Interface Principale */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .stars-container {
+            font-size: 24px;
+            color: #f1c40f;
+        }
+
+        /* Zone de Tracé (Séyès) */
+        #canvas-zone {
+            flex-grow: 1;
+            position: relative;
+            background-color: white;
+            background-image:
+                linear-gradient(var(--ligne-interline) 1px, transparent 1px),
+                linear-gradient(var(--ligne-interline) 1px, transparent 1px),
+                linear-gradient(var(--ligne-interline) 1px, transparent 1px),
+                linear-gradient(var(--ligne-base) 2px, transparent 2px);
+            background-size: 100% 80px, 100% 80px, 100% 80px, 100% 80px;
+            background-position: 0 40px, 0 60px, 0 80px, 0 100px;
+            cursor: crosshair;
+        }
+
+        #drawing-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Sélecteur de lettres (Bas de page) */
+        .letter-bar {
+            height: 120px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            overflow-x: auto;
+            padding: 0 10px;
+            gap: 15px;
+        }
+
+        .letter-card {
+            min-width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #ccc;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .letter-card:active { transform: translateY(4px); box-shadow: none; }
+        .voyelle { color: var(--rouge-voyelle); }
+        .consonne { color: var(--bleu-consonne); }
+
+        /* Modale Image Mot */
+        #word-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 0 50px rgba(0,0,0,0.3);
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        #word-image {
+            width: 250px;
+            height: 250px;
+            border-radius: 15px;
+            object-fit: cover;
+            margin-bottom: 10px;
+        }
+
+        .cursive-text {
+            font-family: 'Pacifico', cursive; /* Fallback si internet présent, sinon cursive propre */
+            font-size: 45px;
+            color: #333;
+        }
+
+        #btn-clear {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: #ff7675;
+            color: white;
+            border: none;
+            padding: 15px 25px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="app-container">
+    <header>
+        <div style="font-size: 20px; font-weight: bold; color: #555;">Rym apprend la cursive ✨</div>
+        <div class="stars-container" id="star-count">0 ⭐</div>
+    </header>
+
+    <div id="canvas-zone">
+        <button id="btn-clear" onclick="clearCanvas()">Effacer</button>
+        <canvas id="drawing-canvas"></canvas>
+    </div>
+
+    <div id="word-modal">
+        <img id="word-image" src="" alt="Illustration">
+        <div class="cursive-text" id="word-text"></div>
+        <p style="color: #999;">Touche l'image pour entendre le son</p>
+        <button onclick="closeModal()" style="margin-top:10px; padding: 10px 20px;">Fermer</button>
+    </div>
+
+    <div class="letter-bar" id="alphabet-bar">
+        </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d');
+    const starDisplay = document.getElementById('star-count');
+    let drawing = false;
+    let stars = parseInt(localStorage.getItem('rym_stars') || '0');
+    starDisplay.innerText = stars + " ⭐";
+
+    // Configuration des lettres (Ordre Alvarez)
+    const letters = [
+        { char: 'a', type: 'voyelle', word: 'Avion', img: 'airplane' },
+        { char: 'i', type: 'voyelle', word: 'Ile', img: 'island' },
+        { char: 'u', type: 'voyelle', word: 'Usine', img: 'factory' },
+        { char: 'o', type: 'voyelle', word: 'Ours', img: 'bear' },
+        { char: 'e', type: 'voyelle', word: 'Escargot', img: 'snail' },
+        { char: 'm', type: 'consonne', word: 'Maman', img: 'mother' },
+        { char: 'p', type: 'consonne', word: 'Papa', img: 'father' },
+        { char: 'l', type: 'consonne', word: 'Lapin', img: 'rabbit' },
+        { char: 't', type: 'consonne', word: 'Tortue', img: 'turtle' }
+    ];
+
+    // Initialisation
+    function init() {
+        resizeCanvas();
+        renderAlphabet();
+        window.addEventListener('resize', resizeCanvas);
+    }
+
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+        clearCanvas();
+    }
+
+    function renderAlphabet() {
+        const bar = document.getElementById('alphabet-bar');
+        letters.forEach(l => {
+            const div = document.createElement('div');
+            div.className = `letter-card ${l.type}`;
+            div.innerText = l.char;
+            div.onclick = () => selectLetter(l);
+            bar.appendChild(div);
+        });
+    }
+
+    function selectLetter(l) {
+        // Phonétique Alvarez (Son pur)
+        const utter = new SpeechSynthesisUtterance();
+        utter.lang = 'fr-FR';
+        utter.rate = 0.8;
+
+        // Logique de son pur
+        if(l.char === 'm') utter.text = "mmmmmmmmm";
+        else if(l.char === 'l') utter.text = "lllllllll";
+        else if(l.char === 's') utter.text = "sssssssss";
+        else utter.text = l.char;
+
+        window.speechSynthesis.speak(utter);
+
+        // Afficher l'image
+        document.getElementById('word-modal').style.display = 'block';
+        document.getElementById('word-image').src = `https://source.unsplash.com/400x400/?${l.img}`;
+        document.getElementById('word-text').innerText = l.word;
+
+        // Audio du mot au clic sur image
+        document.getElementById('word-image').onclick = () => {
+            const wordUtter = new SpeechSynthesisUtterance(l.word);
+            wordUtter.lang = 'fr-FR';
+            window.speechSynthesis.speak(wordUtter);
+        };
+    }
+
+    function closeModal() {
+        document.getElementById('word-modal').style.display = 'none';
+        // Récompense symbolique
+        stars++;
+        localStorage.setItem('rym_stars', stars);
+        starDisplay.innerText = stars + " ⭐";
+    }
+
+    // Moteur de dessin tactile
+    canvas.addEventListener('pointerdown', (e) => { drawing = true; ctx.beginPath(); ctx.moveTo(e.clientX, e.clientY - 60); });
+    canvas.addEventListener('pointermove', (e) => {
+        if (!drawing) return;
+        ctx.lineTo(e.clientX, e.clientY - 60);
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#2d3436';
+        ctx.stroke();
+    });
+    canvas.addEventListener('pointerup', () => { drawing = false; });
+
+    function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    init();
+</script>
+
+</body>
+</html>
